@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::mapper::Mapper;
+use crate::mapper::{Mapper, NameTableMirroring};
 
 pub struct PictureBus {
     ram: Vec<u8>,
@@ -23,6 +23,52 @@ impl PictureBus {
             name_table2: 0,
             name_table3: 0,
             mapper: None,
+        }
+    }
+
+    pub fn set_mapper(&mut self, mapper: Rc<RefCell<Mapper>>) {
+        self.mapper = Some(mapper);
+        self.update_mirroring();
+    }
+
+    pub fn update_mirroring(&mut self) {
+        match self
+            .mapper
+            .as_ref()
+            .unwrap()
+            .borrow()
+            .get_name_table_mirroring()
+        {
+            NameTableMirroring::Horizontal => {
+                self.name_table0 = 0;
+                self.name_table1 = 0;
+                self.name_table2 = 0x400;
+                self.name_table3 = 0x400;
+            }
+            NameTableMirroring::Vertical => {
+                self.name_table0 = 0;
+                self.name_table1 = 0x400;
+                self.name_table2 = 0;
+                self.name_table3 = 0x400;
+            }
+            NameTableMirroring::OneScreenLower => {
+                self.name_table0 = 0;
+                self.name_table1 = 0;
+                self.name_table2 = 0;
+                self.name_table3 = 0;
+            }
+            NameTableMirroring::OneScreenHigher => {
+                self.name_table0 = 0x400;
+                self.name_table1 = 0x400;
+                self.name_table2 = 0x400;
+                self.name_table3 = 0x400;
+            }
+            _ => {
+                self.name_table0 = 0;
+                self.name_table1 = 0;
+                self.name_table2 = 0;
+                self.name_table3 = 0;
+            }
         }
     }
 }

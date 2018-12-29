@@ -1,5 +1,6 @@
 pub mod cartridge;
 pub mod emulator;
+pub mod main_bus;
 pub mod mapper;
 pub mod mapper_cnrom;
 pub mod mapper_nrom;
