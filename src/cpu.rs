@@ -19,7 +19,9 @@ const BRANCH_INSTRUCTION_MASK_RESULT: Byte = 0x10;
 const BRANCH_CONDITION_MASK: Byte = 0x20;
 const BRANCH_ON_FLAG_SHIFT: Byte = 6;
 
+const NMI_VECTOR: Address = 0xfffa;
 const RESET_VECTOR: Address = 0xfffc;
+const IRQ_VECTOR: Address = 0xfffe;
 const OPERATION_CYCLES: [i32; 0x100] = [
     7, 6, 0, 0, 0, 3, 5, 0, 3, 2, 2, 0, 0, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
     6, 6, 0, 0, 3, 3, 5, 0, 4, 2, 2, 0, 4, 4, 6, 0, 2, 5, 0, 0, 0, 4, 6, 0, 2, 4, 0, 0, 0, 4, 7, 0,
@@ -235,6 +237,7 @@ impl OperationImplied {
     }
 }
 
+#[derive(Debug, PartialEq)]
 enum InterruptType {
     IRQ,
     NMI,
@@ -800,15 +803,40 @@ impl CPU {
     }
 
     fn interrupt(&mut self, t: InterruptType) {
-        unimplemented!()
+        if self.f_I && t != InterruptType::NMI && t != InterruptType::BRK_ {
+            return;
+        }
+        if t == InterruptType::BRK_ {
+            self.r_PC += 1;
+        }
+        self.push_stack((self.r_PC >> 8) as u8);
+        self.push_stack(self.r_PC as u8);
+
+        let flags = bu8(self.f_N) << 7 | bu8(self.f_V) << 6 |
+               1 << 5 |              // unused bit, supposed to be always 1
+               bu8(t ==InterruptType:: BRK_) << 4 | // B flag set if BRK
+               bu8(self.f_D) << 3 | bu8(self.f_I) << 2 | bu8(self.f_Z) << 1 | bu8(self.f_C);
+        self.push_stack(flags);
+        self.f_I = true;
+        match t {
+            InterruptType::IRQ | InterruptType::BRK_ => {
+                self.r_PC = self.read_address(IRQ_VECTOR);
+            }
+            InterruptType::NMI => {
+                self.r_PC = self.read_address(NMI_VECTOR);
+            }
+        }
+        self.m_skipCycles += 7;
     }
     fn pull_stack(&mut self) -> Byte {
         self.r_SP += 1;
         self.main_bus.borrow().read(0x100 | (self.r_SP as u16))
     }
     fn push_stack(&mut self, value: Byte) {
-        unimplemented!();
-        self.r_SP -= 1;
+        self.main_bus
+            .borrow_mut()
+            .write(0x100 | (self.r_SP as u16), value);
+        self.r_SP -= 1; // Hardware stacks grow downward!
     }
     fn set_zn(&mut self, value: Byte) {
         self.f_Z = value == 0;

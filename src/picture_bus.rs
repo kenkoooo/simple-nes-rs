@@ -73,7 +73,30 @@ impl PictureBus {
     }
 
     pub fn read(&mut self, address: u16) -> u8 {
-        unimplemented!()
+        if address < 0x2000 {
+            self.mapper.as_ref().unwrap().borrow().read_chr(address)
+        } else if address < 0x3eff
+        // Name tables upto 0x3000, then mirrored upto 3eff
+        {
+            let index = (address & 0x3ff) as usize;
+            if address < 0x2400 {
+                // NT0
+                self.ram[self.name_table0 + index]
+            } else if address < 0x2800 {
+                // NT1
+                self.ram[self.name_table1 + index]
+            } else if address < 0x2c00 {
+                // NT2
+                self.ram[self.name_table2 + index]
+            } else {
+                // NT3
+                self.ram[self.name_table3 + index]
+            }
+        } else if address < 0x3fff {
+            self.palette[(address & 0x1f) as usize]
+        } else {
+            0
+        }
     }
 
     pub fn read_palette(&self, palette_address: u16) -> u8 {

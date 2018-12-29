@@ -60,6 +60,12 @@ impl Mapper {
         }
     }
 
+    pub fn write_prg(&mut self, address: u16, value: u8) {
+        unimplemented!()
+    }
+
+    pub fn read_chr(&self, address: u16) -> u8 {}
+
     pub fn get_name_table_mirroring(&self) -> NameTableMirroring {
         let name_table_mirroring = self.cartridge.borrow().name_table_mirroring;
         match name_table_mirroring {
