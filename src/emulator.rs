@@ -10,11 +10,11 @@ use crate::picture_bus::PictureBus;
 use crate::ppu::PPU;
 
 pub struct Emulator {
-    cartridge: Rc<RefCell<Cartridge>>,
-    picture_bus: Rc<RefCell<PictureBus>>,
-    main_bus: Rc<RefCell<MainBus>>,
-    cpu: CPU,
-    ppu: PPU,
+    pub cartridge: Rc<RefCell<Cartridge>>,
+    pub picture_bus: Rc<RefCell<PictureBus>>,
+    pub main_bus: Rc<RefCell<MainBus>>,
+    pub cpu: CPU,
+    pub ppu: PPU,
 }
 
 impl Emulator {
@@ -29,7 +29,6 @@ impl Emulator {
         self.picture_bus.borrow_mut().set_mapper(mapper.clone());
 
         self.cpu.reset();
-        self.ppu.reset();
 
         unimplemented!()
     }

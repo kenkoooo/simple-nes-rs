@@ -19,6 +19,7 @@ pub enum NameTableMirroring {
 pub struct Mapper {
     mapper: MapperEnum,
     cartridge: Rc<RefCell<Cartridge>>,
+    pub has_extended_ram: bool,
 }
 
 pub enum MapperEnum {
@@ -35,6 +36,7 @@ impl Mapper {
         picture_bus: Rc<RefCell<PictureBus>>,
     ) -> Self {
         let m_cartridge = cartridge.clone();
+        let has_extended_ram = cartridge.borrow().extended_ram;
         let mapper = match mapper_number {
             0 => MapperEnum::MapperNROM(MapperNROM::new(cartridge)),
             1 => MapperEnum::MapperSxROM(MapperSxROM::new(cartridge, picture_bus)),
@@ -45,11 +47,17 @@ impl Mapper {
         Mapper {
             mapper: mapper,
             cartridge: m_cartridge,
+            has_extended_ram: has_extended_ram,
         }
     }
 
-    pub fn has_extended_ram(&self) -> bool {
-        unimplemented!()
+    pub fn read_prg(&self, address: u16) -> u8 {
+        match self.mapper {
+            MapperEnum::MapperCNROM(ref mapper) => mapper.read_prg(address),
+            MapperEnum::MapperNROM(ref mapper) => mapper.read_prg(address),
+            MapperEnum::MapperSxROM(ref mapper) => mapper.read_prg(address),
+            MapperEnum::MapperUxROM(ref mapper) => mapper.read_prg(address),
+        }
     }
 
     pub fn get_name_table_mirroring(&self) -> NameTableMirroring {
