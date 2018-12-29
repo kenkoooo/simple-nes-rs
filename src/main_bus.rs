@@ -1,8 +1,9 @@
 use std::cell::RefCell;
-use std::io;
 use std::rc::Rc;
 
+use crate::controller::Controller;
 use crate::mapper::Mapper;
+use crate::ppu::PPU;
 
 enum IORegisters {
     PPUCTRL,
@@ -19,22 +20,22 @@ enum IORegisters {
 }
 
 impl IORegisters {
-    fn get(address: u16) -> IORegisters {
+    fn get(address: u16) -> Option<IORegisters> {
         match address {
-            0x2000 => IORegisters::PPUCTRL,
-            0x4014 => IORegisters::OAMDMA,
-            0x4016 => IORegisters::JOY1,
-            0x4017 => IORegisters::JOY2,
-            _ => unimplemented!(),
+            0x2000 => Some(IORegisters::PPUCTRL),
+            0x4014 => Some(IORegisters::OAMDMA),
+            0x4016 => Some(IORegisters::JOY1),
+            0x4017 => Some(IORegisters::JOY2),
+            _ => None,
         }
     }
 }
 
 pub struct MainBus {
     mapper: Option<Rc<RefCell<Mapper>>>,
-    ppu: Rc<RefCell<PPU>>,
-    controller1: Rc<Ref<Controller>>,
-    controller2: Rc<Ref<Controller>>,
+    ppu: Option<Rc<RefCell<PPU>>>,
+    controller1: Option<Rc<RefCell<Controller>>>,
+    controller2: Option<Rc<RefCell<Controller>>>,
     ram: [u8; 0x800],
     extended_ram: Vec<u8>,
 }
@@ -45,6 +46,9 @@ impl MainBus {
             mapper: None,
             ram: [0; 0x800],
             extended_ram: vec![],
+            ppu: None,
+            controller1: None,
+            controller2: None,
         }
     }
     pub fn set_mapper(&mut self, mapper: Rc<RefCell<Mapper>>) {
@@ -54,8 +58,15 @@ impl MainBus {
         self.mapper = Some(mapper);
     }
 
-    fn callback(&self, register: IORegisters) {
-        match register {}
+    fn callback(&self, register: IORegisters) -> u8 {
+        match register {
+            IORegisters::PPUSTATUS => self.ppu.as_ref().unwrap().borrow().get_status(),
+            IORegisters::PPUDATA => self.ppu.as_ref().unwrap().borrow().get_data(),
+            IORegisters::JOY1 => self.controller1.as_ref().unwrap().borrow_mut().read(),
+            IORegisters::JOY2 => self.controller2.as_ref().unwrap().borrow_mut().read(),
+            IORegisters::OAMDATA => self.ppu.as_ref().unwrap().borrow_mut().get_oam_data(),
+            _ => unimplemented!(),
+        }
     }
 
     pub fn read(&mut self, address: u16) -> u8 {
@@ -65,31 +76,18 @@ impl MainBus {
         } else if address < 0x4020 {
             if addr < 0x4000 {
                 // PPU registers, mirrored
-                let register = IORegisters::get(address & 0x2007);
-            //   auto it = m_readCallbacks.find(static_cast<IORegisters>(addr & 0x2007));
-            //   if (it != m_readCallbacks.end())
-            //     return (it->second)();
-            //   // Second object is the pointer to the function object
-            //   // Dereference the function pointer and call it
-            //   else
-            //     LOG(InfoVerbose) << "No read callback registered for I/O register at: "
-            //                      << std::hex << +addr << std::endl;
+                match IORegisters::get(address & 0x2007) {
+                    Some(register) => self.callback(register),
+                    None => 0,
+                }
             } else if addr < 0x4018 && addr >= 0x4014 {
-                // Only *some* IO registers
-
-                //   auto it = m_readCallbacks.find(static_cast<IORegisters>(addr));
-                //   if (it != m_readCallbacks.end())
-                //     return (it->second)();
-                //   // Second object is the pointer to the function object
-                //   // Dereference the function pointer and call it
-                //   else
-                //     LOG(InfoVerbose) << "No read callback registered for I/O register at: "
-                //                      << std::hex << +addr << std::endl;
+                match IORegisters::get(address) {
+                    Some(register) => self.callback(register),
+                    None => 0,
+                }
             } else {
-                //   LOG(InfoVerbose) << "Read access attempt at: " << std::hex << +addr
-                //                    << std::endl;
+                0
             }
-            unimplemented!()
         } else if address < 0x6000 {
             eprintln!("Expansion ROM read attempted. This is currently unsupported");
             0

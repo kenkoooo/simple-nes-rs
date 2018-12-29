@@ -71,4 +71,12 @@ impl PictureBus {
             }
         }
     }
+
+    pub fn read(&mut self, address: u16) -> u8 {
+        unimplemented!()
+    }
+
+    pub fn read_palette(&self, palette_address: u16) -> u8 {
+        self.palette[palette_address as usize]
+    }
 }

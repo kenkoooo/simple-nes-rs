@@ -84,4 +84,7 @@ impl CPU {
         let b = self.main_bus.borrow_mut().read(address + 1) as Address;
         a | b << 8
     }
+    pub fn step(&mut self) {
+        unimplemented!()
+    }
 }

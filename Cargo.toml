@@ -1,7 +1,9 @@
 [package]
-name = "simple-nes-rs"
+name = "simple_nes_rs"
 version = "0.1.0"
 authors = ["Kenko Nakamura <kenkou.n@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+sfml = "0.14.0"
+time = "0.1.41"
