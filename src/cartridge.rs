@@ -3,11 +3,11 @@ use std::io;
 use std::io::prelude::*;
 
 pub struct Cartridge {
-    prg_rom: Vec<u8>,
-    chr_rom: Vec<u8>,
-    name_table_mirroring: u8,
-    mapper_number: u8,
-    extended_ram: bool,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
+    pub name_table_mirroring: u8,
+    pub mapper_number: u8,
+    pub extended_ram: bool,
 }
 
 impl Cartridge {
