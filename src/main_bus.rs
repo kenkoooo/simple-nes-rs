@@ -69,7 +69,7 @@ impl MainBus {
         }
     }
 
-    pub fn read(&mut self, address: u16) -> u8 {
+    pub fn read(&self, address: u16) -> u8 {
         let addr = address as usize;
         if address < 0x2000 {
             return self.ram[addr & 0x7ff];
@@ -100,5 +100,9 @@ impl MainBus {
         } else {
             self.mapper.as_ref().unwrap().borrow().read_prg(address)
         }
+    }
+
+    pub fn write(&mut self, addr: u16, value: u8) {
+        unimplemented!()
     }
 }
