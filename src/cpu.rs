@@ -78,6 +78,63 @@ impl Operation0 {
 }
 
 #[derive(PartialEq)]
+enum Operation1 {
+    ORA,
+    AND,
+    EOR,
+    ADC,
+    STA,
+    LDA,
+    CMP,
+    SBC,
+    Unsupported,
+}
+
+impl Operation1 {
+    fn get(x: u8) -> Operation1 {
+        match x {
+            0 => Operation1::ORA,
+            1 => Operation1::AND,
+            2 => Operation1::EOR,
+            3 => Operation1::ADC,
+            4 => Operation1::STA,
+            5 => Operation1::LDA,
+            6 => Operation1::CMP,
+            7 => Operation1::SBC,
+            _ => Operation1::Unsupported,
+        }
+    }
+}
+
+enum AddrMode1 {
+    IndexedIndirectX,
+    ZeroPage,
+    Immediate,
+    Absolute,
+    IndirectY,
+    IndexedX,
+    AbsoluteY,
+    AbsoluteX,
+    Unsupported,
+}
+
+impl AddrMode1 {
+    fn get(x: u8) -> AddrMode1 {
+        match x {
+            0 => AddrMode1::IndexedIndirectX,
+            1 => AddrMode1::ZeroPage,
+            2 => AddrMode1::Immediate,
+            3 => AddrMode1::Absolute,
+            4 => AddrMode1::IndirectY,
+            5 => AddrMode1::IndexedX,
+            6 => AddrMode1::AbsoluteY,
+            7 => AddrMode1::AbsoluteX,
+            _ => AddrMode1::Unsupported,
+        }
+    }
+}
+
+#[derive(PartialEq)]
 enum Operation2 {
     ASL,
     ROL,
@@ -521,8 +578,119 @@ impl CPU {
         }
         return false;
     }
-    fn executed_type1(&self, opcode: u8) -> bool {
-        unimplemented!()
+    fn executed_type1(&mut self, opcode: u8) -> bool {
+        if (opcode & INSTRUCTION_MODE_MASK) == 0x1 {
+            let mut location: Address = 0; // Location of the operand, could be in RAM
+            let op = Operation1::get((opcode & OPERATION_MASK) >> OPERATION_SHIFT);
+            match AddrMode1::get((opcode & ADDR_MODE_MASK) >> ADDR_MODE_SHIFT) {
+                AddrMode1::IndexedIndirectX => {
+                    let zero_addr = (self.r_X + self.main_bus.borrow().read(self.r_PC)) as u16;
+                    self.r_PC += 1;
+                    // Addresses wrap in zero page mode, thus pass through a mask
+                    location = (self.main_bus.borrow().read(zero_addr & 0xff) as u16)
+                        | (self.main_bus.borrow().read((zero_addr + 1) & 0xff) as u16) << 8;
+                }
+                AddrMode1::ZeroPage => {
+                    location = self.main_bus.borrow().read(self.r_PC) as u16;
+                    self.r_PC += 1;
+                }
+                AddrMode1::Immediate => {
+                    location = self.r_PC;
+                    self.r_PC += 1;
+                }
+                AddrMode1::Absolute => {
+                    location = self.read_address(self.r_PC as u16);
+                    self.r_PC += 2;
+                }
+                AddrMode1::IndirectY => {
+                    let zero_addr = self.main_bus.borrow().read(self.r_PC) as u16;
+                    self.r_PC += 1;
+                    location = (self.main_bus.borrow().read(zero_addr & 0xff) as u16)
+                        | (self.main_bus.borrow().read((zero_addr + 1) & 0xff) as u16) << 8;
+                    if op != Operation1::STA {
+                        self.set_page_crossed(location, location + self.r_Y as u16, 1);
+                    }
+                    location += self.r_Y as u16;
+                }
+                AddrMode1::IndexedX => {
+                    //   // Address wraps around in the zero page
+                    location = (self.main_bus.borrow().read(self.r_PC) + self.r_X) as u16 & 0xff;
+                    self.r_PC += 1;
+                }
+                AddrMode1::AbsoluteY => {
+                    location = self.read_address(self.r_PC);
+                    self.r_PC += 2;
+                    if op != Operation1::STA {
+                        self.set_page_crossed(location, location + self.r_Y as u16, 1);
+                    }
+                    location += self.r_Y as u16;
+                }
+                AddrMode1::AbsoluteX => {
+                    location = self.read_address(self.r_PC);
+                    self.r_PC += 2;
+                    if op != Operation1::STA {
+                        self.set_page_crossed(location, location + self.r_X as u16, 1);
+                    }
+                    location += self.r_X as u16;
+                }
+                _ => {
+                    return false;
+                }
+            }
+            match op {
+                Operation1::ORA => {
+                    self.r_A |= self.main_bus.borrow().read(location);
+                    self.set_zn(self.r_A);
+                }
+                Operation1::AND => {
+                    self.r_A &= self.main_bus.borrow().read(location);
+                    self.set_zn(self.r_A);
+                }
+                Operation1::EOR => {
+                    self.r_A ^= self.main_bus.borrow().read(location);
+                    self.set_zn(self.r_A);
+                }
+                Operation1::ADC => {
+                    let operand = self.main_bus.borrow().read(location);
+                    let sum: Address = self.r_A as u16 + (operand as u16) + bu16(self.f_C);
+                    // Carry forward or UNSIGNED overflow
+                    self.f_C = u16b(sum & 0x100);
+                    // SIGNED overflow, would only happen if the sign of sum is
+                    // different from BOTH the operands
+                    self.f_V = u16b(((self.r_A as u16) ^ sum) & ((operand as u16) ^ sum) & 0x80);
+                    self.r_A = sum as u8;
+                    self.set_zn(self.r_A);
+                }
+                Operation1::STA => self.main_bus.borrow_mut().write(location, self.r_A),
+                Operation1::LDA => {
+                    self.r_A = self.main_bus.borrow().read(location);
+                    self.set_zn(self.r_A);
+                }
+                Operation1::SBC => {
+                    //   High carry means "no borrow", thus negate and subtract
+                    let subtrahend: Address = self.main_bus.borrow().read(location) as u16;
+                    let diff: Address = (self.r_A as u16) - subtrahend - bu16(!self.f_C);
+                    // if the ninth bit is 1, the resulting number is negative => borrow =>
+                    // low carry
+                    self.f_C = !u16b(diff & 0x100);
+                    // Same as ADC, except instead of the subtrahend,
+                    // substitute with it's one complement
+                    self.f_V = u16b(((self.r_A as u16) ^ diff) & (!subtrahend ^ diff) & 0x80);
+                    self.r_A = diff as u8;
+                    self.set_zn(self.r_A);
+                }
+                Operation1::CMP => {
+                    let diff: Address = (self.r_A - self.main_bus.borrow().read(location)) as u16;
+                    self.f_C = !u16b(diff & 0x100);
+                    self.set_zn(diff as u8);
+                }
+                _ => {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
     }
     fn executed_type2(&mut self, opcode: u8) -> bool {
         if (opcode & INSTRUCTION_MODE_MASK) == 2 {
