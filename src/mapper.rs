@@ -105,6 +105,7 @@ struct MapperNROM {
     one_bank: bool,
     uses_character_ram: bool,
     character_ram: Vec<Byte>,
+    cartridge: Rc<RefCell<Cartridge>>,
 }
 
 impl MapperNROM {
@@ -119,21 +120,36 @@ impl MapperNROM {
             one_bank,
             uses_character_ram,
             character_ram,
+            cartridge,
         }
     }
 }
 
 impl MapperTrait for MapperNROM {
     fn read_prg(&self, addr: Address) -> Byte {
-        unimplemented!()
+        let addr = addr as usize;
+        if !self.one_bank {
+            self.cartridge.borrow().prg_rom[addr - 0x8000]
+        } else {
+            self.cartridge.borrow().prg_rom[(addr - 0x8000) & 0x3fff]
+        }
     }
     fn write_prg(&mut self, addr: Address, value: Byte) {
-        unimplemented!()
+        eprintln!("ROM memory write attempt at {}", addr);
     }
     fn read_chr(&self, addr: Address) -> Byte {
-        unimplemented!()
+        let addr = addr as usize;
+        if self.uses_character_ram {
+            self.character_ram[addr]
+        } else {
+            self.cartridge.borrow().chr_rom[addr]
+        }
     }
     fn write_chr(&mut self, addr: Address, value: Byte) {
-        unimplemented!()
+        if self.uses_character_ram {
+            self.character_ram[addr as usize] = value;
+        } else {
+            eprintln!("Read-only CHR memory write attempt at {}", addr);
+        }
     }
 }
