@@ -31,7 +31,6 @@ impl NameTableMirroring {
 
 pub struct Mapper<F> {
     mapper: MapperKind<F>,
-    callback: F,
 }
 
 impl<F> Mapper<F>
@@ -42,15 +41,16 @@ where
         let mapper = match cartridge.borrow().mapper_type {
             MapperType::CNROM => MapperKind::CNROM(MapperCNROM::new(cartridge.clone())),
             MapperType::NROM => MapperKind::NROM(MapperNROM::new(cartridge.clone())),
-            _ => unimplemented!(),
+            MapperType::UxROM => MapperKind::UxROM(MapperUxROM::new(cartridge.clone())),
+            MapperType::SxROM => MapperKind::SxROM(MapperSxROM::new(cartridge.clone(), callback)),
         };
-        Mapper { mapper, callback }
+        Mapper { mapper }
     }
 }
 
 enum MapperKind<F> {
     CNROM(MapperCNROM),
-    UxROM,
+    UxROM(MapperUxROM),
     SxROM(MapperSxROM<F>),
     NROM(MapperNROM),
 }
@@ -400,5 +400,26 @@ impl MapperTrait for MapperUxROM {
 
     fn get_mirroring(&self) -> NameTableMirroring {
         NameTableMirroring::get(self.cartridge.borrow().name_table_mirroring)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_mapper() {
+        fs::read_dir("./roms/")
+            .unwrap()
+            .map(|f| f.unwrap().path().display().to_string())
+            .for_each(|path| {
+                let cartridge = Cartridge::new(&path).expect(&path);
+                let cartridge = Rc::new(RefCell::new(cartridge));
+                let mut x = 0;
+                Mapper::new(cartridge, || {
+                    x += 1;
+                });
+            });
     }
 }
