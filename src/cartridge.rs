@@ -2,28 +2,39 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 
-pub struct Cartridge {}
+pub struct Cartridge {
+    pub is_horizontal_mirror: bool,
+    pub character_rom: Vec<u8>,
+    pub program_rom: Vec<u8>,
+    pub mapper: u8,
+}
 
 impl Cartridge {
-    fn new(path: &str) -> io::Result<Self> {
+    pub fn new(path: &str) -> io::Result<Self> {
         let mut f = File::open(path)?;
         let mut header = [0; 16];
         f.read_exact(&mut header)?;
         assert_eq!(&header[0..4], b"NES\x1A");
 
-        let prg_rom_size = header[4] as usize;
-        let chr_rom_size = header[5] as usize;
-        let flags_6 = header[6];
+        let program_rom_size = header[4] as usize;
+        let character_rom_size = header[5] as usize;
 
-        let mirroring = (flags_6 & 1) != 0;
-        let battery = (flags_6 & (1 << 1)) != 0;
-        let trainer = (flags_6 & (1 << 2)) != 0;
+        let flag_6 = header[6];
+        let is_horizontal_mirror = (flag_6 & 1) == 0;
 
-        let flags_7 = header[7];
-        let flags_8 = header[8];
-        let flags_9 = header[9];
-        let flags_10 = header[10];
+        let flag_7 = header[7];
+        let mapper = (flag_6 >> 4) | ((flag_7 >> 4) << 4);
 
-        unimplemented!()
+        let mut program_rom = vec![0; 0x4000 * program_rom_size];
+        let mut character_rom = vec![0; 0x2000 * character_rom_size];
+
+        f.read_exact(&mut program_rom[..])?;
+        f.read_exact(&mut character_rom[..])?;
+        Ok(Cartridge {
+            is_horizontal_mirror,
+            program_rom,
+            character_rom,
+            mapper,
+        })
     }
 }

@@ -1,3 +1,3 @@
 fn main() {
-    println!("{} {} {}", 0x1, 0x2, 0x3);
+    println!("{} ", 0xF0);
 }
